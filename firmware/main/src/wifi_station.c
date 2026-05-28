@@ -19,7 +19,6 @@
 #include "nvs.h"
 
 #define WIFI_CONNECTED_BIT BIT0
-#define WIFI_MAX_RETRY 10
 
 static const char *TAG = "wifi_station";
 
@@ -326,10 +325,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
         s_connected = false;
         xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
         s_retry_count++;
-        ESP_LOGW(TAG, "WiFi disconnected, retry %d", s_retry_count);
-        if (s_retry_count <= WIFI_MAX_RETRY) {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
-        }
+        ESP_LOGW(TAG, "WiFi disconnected, reconnecting continuously, retry %d", s_retry_count);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
         return;
     }
 
