@@ -17,6 +17,8 @@
 
 `http://127.0.0.1:8090`
 
+这只是本机预览地址，不是云端地址。真正演示云端网页时，把本目录里的 `index.html`、`app.js`、`style.css` 和 `README.md` 上传到 GitHub Pages、Cloudflare Pages、Vercel、Netlify 或自己的服务器即可。
+
 ## 部署建议
 
 可以部署到 GitHub Pages、Cloudflare Pages、Vercel、Netlify 等静态托管平台。因为页面是 HTTPS，默认使用 `wss://broker.emqx.io:8084/mqtt`，避免浏览器拦截普通 `ws://`。
