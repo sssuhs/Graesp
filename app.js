@@ -1,15 +1,19 @@
-﻿const $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id);
 const chart = $("chart");
 const ctx = chart.getContext("2d");
 
 let client = null;
 let selectedId = localStorage.getItem("graesp-cloud-selected") || "";
+let view = "home";
 let devices = new Map();
 let histories = new Map();
 let logs = [];
 let seriesMode = "thermal";
 
 const HISTORY_LIMIT = 160;
+const OFFLINE_SECONDS = 8;
+const STALE_SECONDS = 3;
+const alertStates = new Set(["temp_high", "warning", "overload", "low_battery", "fault"]);
 
 const stateLabel = {
   normal: "正常监测",
@@ -57,27 +61,39 @@ function deviceTopic(deviceId, suffix) {
   return `${topicPrefix()}/${deviceId}/${suffix}`;
 }
 
-function commandTopic(deviceId) {
-  return deviceTopic(deviceId, "cmd");
-}
-
 function telemetryTopic() {
   return `${topicPrefix()}/+/telemetry`;
 }
 
+function setText(id, value) {
+  const el = $(id);
+  if (el) el.textContent = value;
+}
+
 function setMqttStatus(text, cls = "") {
-  $("mqttStatus").textContent = text;
+  setText("mqttStatus", text);
   $("mqttDot").className = `dot ${cls}`.trim();
-  $("mqttMeta").textContent = $("brokerUrl").value.trim();
+  setText("mqttMeta", $("brokerUrl").value.trim());
   $("mqttStatusCard").classList.toggle("online", cls === "online");
 }
 
 function linkState(device) {
   if (!device) return "offline";
   const age = (Date.now() - device.receivedAt) / 1000;
-  if (age <= 8) return "online";
-  if (age <= 20) return "stale";
+  if (age <= STALE_SECONDS) return "online";
+  if (age <= OFFLINE_SECONDS) return "stale";
   return "offline";
+}
+
+function linkText(state) {
+  if (state === "online") return "在线";
+  if (state === "stale") return "信号延迟";
+  return "离线";
+}
+
+function displayState(device) {
+  if (!device) return "offline";
+  return linkState(device) === "offline" ? "offline" : (device.state || "normal");
 }
 
 function faultText(device) {
@@ -105,28 +121,43 @@ function normalizePacket(packet) {
 }
 
 function appendHistory(packet) {
-  const id = packet.device_id;
-  const list = histories.get(id) || [];
+  const list = histories.get(packet.device_id) || [];
   list.push({ ...packet, t: Date.now() });
   if (list.length > HISTORY_LIMIT) list.splice(0, list.length - HISTORY_LIMIT);
-  histories.set(id, list);
+  histories.set(packet.device_id, list);
 }
 
 function selectedDevice() {
-  return devices.get(selectedId) || [...devices.values()][0] || null;
+  return devices.get(selectedId) || null;
+}
+
+function showHome() {
+  view = "home";
+  $("homeView").hidden = false;
+  $("detailView").hidden = true;
+  render();
+}
+
+function showDetail(id) {
+  selectedId = id;
+  localStorage.setItem("graesp-cloud-selected", id);
+  view = "detail";
+  $("homeView").hidden = true;
+  $("detailView").hidden = false;
+  render();
 }
 
 function chartSeries() {
   return seriesMode === "thermal"
     ? [
-      { key: "temp_rise_c", label: "温升", unit: "℃", color: "#24a148", fill: "rgba(36, 161, 72, 0.05)", scale: v => Math.max(0, Math.min(100, Number(v) * 5)) },
-      { key: "heating_rate_c_per_min", label: "升温速率", unit: "℃/min", color: "#b86b00", fill: "rgba(184, 107, 0, 0.04)", scale: v => Math.max(0, Math.min(100, Number(v) * 10)) },
-      { key: "point_diff_c", label: "测点差", unit: "℃", color: "#0071e3", fill: "rgba(0, 113, 227, 0.04)", scale: v => Math.max(0, Math.min(100, Number(v) * 20)) }
+      { key: "temp_rise_c", label: "温升", color: "#24a148", fill: "rgba(36, 161, 72, 0.05)", scale: v => Math.max(0, Math.min(100, Number(v) * 5)) },
+      { key: "heating_rate_c_per_min", label: "升温速率", color: "#b86b00", fill: "rgba(184, 107, 0, 0.04)", scale: v => Math.max(0, Math.min(100, Number(v) * 10)) },
+      { key: "point_diff_c", label: "测点差", color: "#0071e3", fill: "rgba(0, 113, 227, 0.04)", scale: v => Math.max(0, Math.min(100, Number(v) * 20)) }
     ]
     : [
-      { key: "estimated_current_a", label: "估计电流", unit: "A", color: "#0071e3", fill: "rgba(0, 113, 227, 0.05)", scale: v => Math.max(0, Math.min(100, Number(v) * 5)) },
-      { key: "overload_probability", label: "过载概率", unit: "%", color: "#d9383a", fill: "rgba(217, 56, 58, 0.05)", scale: v => Math.max(0, Math.min(100, Number(v) * 100)) },
-      { key: "battery_percent", label: "电量", unit: "%", color: "#059669", fill: "rgba(5, 150, 105, 0.03)", scale: v => Math.max(0, Math.min(100, Number(v))) }
+      { key: "estimated_current_a", label: "估计电流", color: "#0071e3", fill: "rgba(0, 113, 227, 0.05)", scale: v => Math.max(0, Math.min(100, Number(v) * 5)) },
+      { key: "overload_probability", label: "过载概率", color: "#d9383a", fill: "rgba(217, 56, 58, 0.05)", scale: v => Math.max(0, Math.min(100, Number(v) * 100)) },
+      { key: "battery_percent", label: "电量", color: "#059669", fill: "rgba(5, 150, 105, 0.03)", scale: v => Math.max(0, Math.min(100, Number(v))) }
     ];
 }
 
@@ -150,7 +181,7 @@ function drawChart(device = selectedDevice()) {
   ctx.strokeStyle = computedStyle.getPropertyValue("--chart-grid").trim() || "rgba(0, 0, 0, 0.06)";
   ctx.lineWidth = 1;
 
-  for (let i = 0; i <= 4; i++) {
+  for (let i = 0; i <= 4; i += 1) {
     const y = 28 + i * (height - 58) / 4;
     ctx.beginPath();
     ctx.moveTo(50, y);
@@ -168,7 +199,7 @@ function drawChart(device = selectedDevice()) {
   if (!points.length) {
     ctx.textAlign = "center";
     ctx.font = "13px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
-    ctx.fillText("暂无曲线数据，连接设备后自动绘制", width / 2, height / 2);
+    ctx.fillText("暂无曲线数据，设备上报后自动绘制", width / 2, height / 2);
   }
 
   const xStep = Math.max(1, (width - 70) / Math.max(points.length - 1, 1));
@@ -201,15 +232,25 @@ function drawChart(device = selectedDevice()) {
     ctx.stroke();
   }
 
-  $("chartMeta").textContent = device ? `${device.device_id} · 最近 ${points.length} 个采样点` : "最近 0 个采样点";
+  setText("chartMeta", device ? `${device.device_id} · 最近 ${points.length} 个采样点` : "最近 0 个采样点");
   $("chartLegend").innerHTML = series.map(line => `<span><i style="background:${line.color}"></i>${line.label}</span>`).join("");
 }
 
-function renderSummary() {
+function statusCounts() {
   const all = [...devices.values()];
-  const online = all.filter(d => linkState(d) === "online").length;
-  $("summaryText").textContent = `${all.length} 个设备，${online} 个在线`;
-  $("deviceCount").textContent = `${all.length} 个设备`;
+  const online = all.filter(device => linkState(device) !== "offline").length;
+  const alert = all.filter(device => linkState(device) !== "offline" && alertStates.has(device.state)).length;
+  return { total: all.length, online, offline: all.length - online, alert };
+}
+
+function renderSummary() {
+  const counts = statusCounts();
+  setText("summaryText", client?.connected ? `${counts.total} 个设备，${counts.online} 个在线` : "等待连接 MQTT Broker");
+  setText("deviceCount", `${counts.total} 个设备`);
+  setText("totalDevices", String(counts.total));
+  setText("onlineDevices", String(counts.online));
+  setText("offlineDevices", String(counts.offline));
+  setText("alertDevices", String(counts.alert));
 }
 
 function renderDevices() {
@@ -218,30 +259,41 @@ function renderDevices() {
   list.innerHTML = "";
   if (!all.length) {
     const empty = document.createElement("div");
-    empty.className = "log-row";
-    empty.textContent = "暂无设备遥测";
+    empty.className = "home-empty";
+    empty.textContent = "暂无设备上报。连接 MQTT 后，终端发布遥测会自动出现在这里。";
     list.append(empty);
     return;
   }
 
-  all.forEach(device => {
+  for (const device of all) {
     const id = device.device_id;
-    const state = linkState(device);
-    const card = document.createElement("button");
-    card.className = `device-card ${selectedId === id ? "active" : ""} ${state === "offline" ? "offline" : ""}`;
-    card.innerHTML = `<strong>${id}</strong><span>${stateLabel[device.state] || device.state || "--"} · ${state === "online" ? "在线" : state === "stale" ? "信号延迟" : "离线"}</span><span>温升 ${fmt(device.temp_rise_c)} ℃ · 电量 ${device.battery_percent ?? "--"}%</span>`;
-    card.onclick = () => {
-      selectedId = id;
-      localStorage.setItem("graesp-cloud-selected", id);
-      render();
-    };
+    const link = linkState(device);
+    const state = displayState(device);
+    const card = document.createElement("article");
+    card.className = `home-device ${selectedId === id ? "active" : ""} ${link === "offline" ? "offline" : ""} ${alertStates.has(device.state) ? "alerting" : ""}`;
+    card.onclick = () => showDetail(id);
+    card.innerHTML = `
+      <div class="home-device-head">
+        <strong></strong>
+        <span class="pill ${link}"></span>
+      </div>
+      <div class="home-device-meta"></div>
+      <div class="home-device-values">
+        <div><span>温升</span><strong>${fmt(device.temp_rise_c)} ℃</strong></div>
+        <div><span>电流</span><strong>${fmt(device.estimated_current_a)} A</strong></div>
+        <div><span>电量</span><strong>${device.battery_percent ?? "--"}%</strong></div>
+      </div>
+    `;
+    card.querySelector("strong").textContent = id;
+    card.querySelector(".pill").textContent = linkText(link);
+    card.querySelector(".home-device-meta").textContent = `${stateLabel[state] || state} · MQTT 云端 · ${Math.round((Date.now() - device.receivedAt) / 1000)} 秒前`;
     list.append(card);
-  });
+  }
 }
 
 function stateReason(device) {
   if (!device) return "连接 MQTT 后选择一个在线设备。";
-  if (linkState(device) !== "online") return "超过 8 秒未收到云端遥测，设备可能离线或网络延迟。";
+  if (linkState(device) === "offline") return "超过 8 秒未收到云端遥测，设备可能离线或网络延迟。";
   if (device.state === "fault") return `自检/传感器异常：${faultText(device)}。`;
   if (device.state === "overload") return `温升 ${fmt(device.temp_rise_c)} ℃，估计电流 ${fmt(device.estimated_current_a)} A，已经进入过载报警。`;
   if (device.state === "warning") return `温升 ${fmt(device.temp_rise_c)} ℃，过载概率 ${pct(device.overload_probability)}%，处于预警状态。`;
@@ -251,29 +303,31 @@ function stateReason(device) {
 
 function renderDetail() {
   const device = selectedDevice();
-  if (device && !selectedId) selectedId = device.device_id;
-  const state = device?.state || "offline";
+  const state = displayState(device);
   const link = linkState(device);
 
   $("stateBanner").className = `state-banner ${state}`;
-  $("stateTitle").textContent = device ? (stateLabel[state] || state) : "未选择设备";
-  $("stateReason").textContent = stateReason(device);
+  setText("stateTitle", device ? (stateLabel[state] || state) : "未选择设备");
+  setText("stateReason", stateReason(device));
   $("linkBadge").className = `pill ${link}`;
-  $("linkBadge").textContent = link === "online" ? "在线" : link === "stale" ? "信号延迟" : "离线";
+  setText("linkBadge", linkText(link));
 
-  $("deviceTitle").textContent = device?.device_id || "设备详情";
-  $("deviceMeta").textContent = device ? `MQTT · 最近更新 ${Math.round((Date.now() - device.receivedAt) / 1000)} 秒前` : "--";
-  $("rise").textContent = fmt(device?.temp_rise_c);
-  $("current").textContent = fmt(device?.estimated_current_a);
-  $("prob").textContent = pct(device?.overload_probability);
-  $("battery").textContent = device?.battery_percent ?? "--";
-  $("ntc1").textContent = `${fmt(device?.ntc_c?.[0])} ℃`;
-  $("ntc2").textContent = `${fmt(device?.ntc_c?.[1])} ℃`;
-  $("ambient").textContent = `${fmt(device?.ambient_c)} ℃`;
-  $("rate").textContent = `${fmt(device?.heating_rate_c_per_min)} ℃/min`;
-  $("selfTest").textContent = device?.self_test_ok === true ? "通过" : device?.self_test_ok === false ? "异常" : "--";
-  $("faultText").textContent = device ? faultText(device) : "--";
+  setText("deviceTitle", device?.device_id || "设备详情");
+  setText("deviceMeta", device ? `MQTT 云端 · 最近更新 ${Math.round((Date.now() - device.receivedAt) / 1000)} 秒前` : "--");
+  setText("rise", fmt(device?.temp_rise_c));
+  setText("current", fmt(device?.estimated_current_a));
+  setText("prob", pct(device?.overload_probability));
+  setText("battery", device?.battery_percent ?? "--");
+  setText("ntc1", `${fmt(device?.ntc_c?.[0])} ℃`);
+  setText("ntc2", `${fmt(device?.ntc_c?.[1])} ℃`);
+  setText("ambient", `${fmt(device?.ambient_c)} ℃`);
+  setText("rate", `${fmt(device?.heating_rate_c_per_min)} ℃/min`);
+  setText("selfTest", device?.self_test_ok === true ? "通过" : device?.self_test_ok === false ? "异常" : "--");
+  setText("faultText", device ? faultText(device) : "--");
   $("faultText").classList.toggle("fault", Boolean(device && faultText(device) !== "无"));
+  document.querySelectorAll("[data-command], #wifiUpdateBtn").forEach(button => {
+    button.disabled = !device || link === "offline" || !client?.connected;
+  });
   renderWifiList(device);
   drawChart(device);
 }
@@ -292,7 +346,9 @@ function renderWifiList(device) {
   aps.slice().sort((a, b) => Number(b.rssi) - Number(a.rssi)).forEach(ap => {
     const row = document.createElement("button");
     row.className = "wifi-row";
-    row.innerHTML = `<strong>${ap.ssid || "隐藏网络"}</strong><span>${ap.rssi ?? "--"} dBm</span>`;
+    row.type = "button";
+    row.innerHTML = `<strong></strong><span>${ap.rssi ?? "--"} dBm</span>`;
+    row.querySelector("strong").textContent = ap.ssid || "隐藏网络";
     row.onclick = () => {
       $("wifiSsid").value = ap.ssid || "";
     };
@@ -301,20 +357,30 @@ function renderWifiList(device) {
 }
 
 function renderLogs() {
-  const list = $("logList");
-  list.innerHTML = "";
-  logs.forEach(item => {
-    const row = document.createElement("div");
-    row.className = "log-row";
-    row.textContent = `${item.time}  ${item.message}`;
-    list.append(row);
-  });
+  for (const id of ["homeLogList", "logList"]) {
+    const list = $(id);
+    if (!list) continue;
+    list.innerHTML = "";
+    if (!logs.length) {
+      const empty = document.createElement("div");
+      empty.className = "log-row";
+      empty.textContent = "暂无事件";
+      list.append(empty);
+      continue;
+    }
+    logs.forEach(item => {
+      const row = document.createElement("div");
+      row.className = `log-row ${item.level}`;
+      row.textContent = `${item.time}  ${item.message}`;
+      list.append(row);
+    });
+  }
 }
 
 function render() {
   renderSummary();
   renderDevices();
-  renderDetail();
+  if (view === "detail") renderDetail();
 }
 
 function connectMqtt() {
@@ -343,9 +409,13 @@ function connectMqtt() {
       if (err) log(`订阅失败：${err.message}`, "fault");
       else log(`已订阅 ${topic}`);
     });
+    render();
   });
   client.on("reconnect", () => setMqttStatus("重连中", ""));
-  client.on("close", () => setMqttStatus("已断开", ""));
+  client.on("close", () => {
+    setMqttStatus("已断开", "");
+    render();
+  });
   client.on("error", err => {
     setMqttStatus("连接错误", "error");
     log(`MQTT 错误：${err.message}`, "fault");
@@ -365,7 +435,7 @@ function connectMqtt() {
 }
 
 function publishCommand(command, extra = {}) {
-  const device = devices.get(selectedId);
+  const device = selectedDevice();
   if (!client || !client.connected) {
     log("MQTT 未连接，命令没有发送。", "fault");
     return;
@@ -375,7 +445,7 @@ function publishCommand(command, extra = {}) {
     return;
   }
   const payload = { command, device_id: device.device_id, ...extra, pc_time_s: Date.now() / 1000 };
-  client.publish(commandTopic(device.device_id), JSON.stringify(payload), { qos: 0, retain: false }, err => {
+  client.publish(deviceTopic(device.device_id, "cmd"), JSON.stringify(payload), { qos: 0, retain: false }, err => {
     if (err) log(`命令发送失败：${err.message}`, "fault");
     else log(`已发送 ${command} -> ${device.device_id}`);
   });
@@ -386,6 +456,7 @@ $("disconnectBtn").onclick = () => {
   if (client) client.end();
   client = null;
   setMqttStatus("已断开", "");
+  render();
 };
 $("clearOfflineBtn").onclick = () => {
   for (const [id, device] of devices) {
@@ -393,6 +464,7 @@ $("clearOfflineBtn").onclick = () => {
   }
   render();
 };
+$("backHomeBtn").onclick = showHome;
 document.querySelectorAll("[data-command]").forEach(button => {
   button.onclick = () => publishCommand(button.dataset.command);
 });
@@ -422,11 +494,7 @@ $("wifiUpdateBtn").onclick = () => {
 
 $("brokerUrl").value = localStorage.getItem("graesp-cloud-broker") || $("brokerUrl").value;
 $("topicPrefix").value = localStorage.getItem("graesp-cloud-prefix") || $("topicPrefix").value;
+setMqttStatus("未连接", "");
+renderLogs();
 setInterval(render, 1000);
 render();
-
-
-
-
-
-
