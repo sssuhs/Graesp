@@ -1,0 +1,19 @@
+schema: spec-driven
+
+context: |
+  Project: 插排外置式过载监测终端与 PC 上位机。
+  Domain: 非侵入式插排过载监测、外部热特征采集、电流反演、边缘 AI 过载识别。
+  Firmware target: ESP32-S3-WROOM-1-N16R8.
+  Hardware scope: 3 路 10k B3950 NTC 分压采样、锂电池供电、USB-C 充电/下载、LED 和蜂鸣器报警、Wi-Fi 数据上传。
+  Desktop scope: Wi-Fi 接收实时数据、曲线显示、参数配置、CSV 保存。
+  Non-goals: 不进入插排内部；不把电流传感器作为终端算法输入；不做 OLED；不做 SD 卡。
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours

@@ -1,0 +1,40 @@
+# ESP-IDF build output
+firmware/build/
+firmware/build_*/
+firmware/managed_components/
+firmware/dependencies.lock
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node/Web build output and dependencies
+node_modules/
+dist/
+.vite/
+
+# Runtime data and logs
+data/logs/
+*.log
+*.csv
+
+# Local editor and machine state
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets and local environment
+.env
+.env.*
+*.pem
+*.key
+
+# Generated archives and temporary exports
+*.zip
+*.rar
+*.7z
+*.tmp
+*.bak

@@ -1,0 +1,157 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GraEsp 云端监测</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="app-shell">
+    <section class="topbar">
+      <div>
+        <p class="eyebrow">GraEsp Cloud</p>
+        <h1>插排过载云端监测</h1>
+        <p id="summaryText" class="muted">等待连接 MQTT Broker</p>
+      </div>
+      <div class="status-card" id="mqttStatusCard">
+        <span id="mqttDot" class="dot"></span>
+        <strong id="mqttStatus">未连接</strong>
+        <small id="mqttMeta">broker.emqx.io</small>
+      </div>
+    </section>
+
+    <section class="panel settings-panel">
+      <div class="panel-head">
+        <div>
+          <h2>MQTT 连接</h2>
+          <p>云端网页直接连接公共 Broker，不影响本地网页和设备配网功能。</p>
+        </div>
+        <div class="actions">
+          <button id="connectBtn" class="btn primary">连接</button>
+          <button id="disconnectBtn" class="btn">断开</button>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>WebSocket 地址</span>
+          <input id="brokerUrl" value="wss://broker.emqx.io:8084/mqtt" autocomplete="off">
+        </label>
+        <label>
+          <span>Topic 前缀</span>
+          <input id="topicPrefix" value="graesp/lin" autocomplete="off">
+        </label>
+      </div>
+    </section>
+
+    <section class="main-grid">
+      <aside class="panel device-panel">
+        <div class="panel-head compact">
+          <div>
+            <h2>设备列表</h2>
+            <p id="deviceCount">0 个设备</p>
+          </div>
+          <button id="clearOfflineBtn" class="icon-btn" title="清理离线设备">清理</button>
+        </div>
+        <div id="deviceList" class="device-list"></div>
+      </aside>
+
+      <section class="detail-stack">
+        <section class="state-banner" id="stateBanner">
+          <div>
+            <span class="eyebrow">当前状态</span>
+            <strong id="stateTitle">未选择设备</strong>
+            <p id="stateReason">连接 MQTT 后选择一个在线设备。</p>
+          </div>
+          <span id="linkBadge" class="pill offline">离线</span>
+        </section>
+
+        <section class="metric-grid">
+          <div class="metric"><span>温升</span><strong><b id="rise">--</b> ℃</strong></div>
+          <div class="metric"><span>估计电流</span><strong><b id="current">--</b> A</strong></div>
+          <div class="metric"><span>过载概率</span><strong><b id="prob">--</b> %</strong></div>
+          <div class="metric"><span>电量</span><strong><b id="battery">--</b> %</strong></div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2>实时趋势曲线</h2>
+              <p id="chartMeta">最近 0 个采样点</p>
+            </div>
+            <div class="seg">
+              <button id="seriesThermal" class="active">热特征</button>
+              <button id="seriesModel">模型量</button>
+            </div>
+          </div>
+          <div id="chartLegend" class="chart-legend"></div>
+          <div class="canvas-container">
+            <canvas id="chart" width="1200" height="360"></canvas>
+          </div>
+        </section>
+        <section class="panel detail-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2 id="deviceTitle">设备详情</h2>
+              <p id="deviceMeta">--</p>
+            </div>
+          </div>
+          <div class="kv-grid">
+            <div><span>NTC1</span><strong id="ntc1">--</strong></div>
+            <div><span>NTC2</span><strong id="ntc2">--</strong></div>
+            <div><span>环境温度</span><strong id="ambient">--</strong></div>
+            <div><span>升温速率</span><strong id="rate">--</strong></div>
+            <div><span>自检结果</span><strong id="selfTest">--</strong></div>
+            <div class="wide"><span>自检故障项</span><strong id="faultText">--</strong></div>
+          </div>
+        </section>
+
+        <section class="panel command-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2>远程控制</h2>
+              <p>命令通过 MQTT 下发；本地网页的 WiFi 扫描/改网功能仍然保留。</p>
+            </div>
+          </div>
+          <div class="command-row">
+            <button data-command="self_test" class="btn">系统自检</button>
+            <button data-command="reset_stats" class="btn">清除统计</button>
+            <button data-command="wifi_scan" class="btn">扫描 WiFi</button>
+            <button data-command="wifi_clear" class="btn danger">清除 WiFi</button>
+          </div>
+          <div class="wifi-box">
+            <div class="form-grid">
+              <label>
+                <span>目标 WiFi</span>
+                <input id="wifiSsid" placeholder="选择或输入 WiFi 名称" autocomplete="off">
+              </label>
+              <label>
+                <span>WiFi 密码</span>
+                <input id="wifiPassword" type="password" placeholder="开放网络可留空" autocomplete="current-password">
+              </label>
+            </div>
+            <div class="actions left">
+              <button id="wifiUpdateBtn" class="btn primary">连接此 WiFi</button>
+            </div>
+            <div id="wifiList" class="wifi-list"></div>
+          </div>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2>事件记录</h2>
+              <p>最近 80 条云端连接、遥测和命令事件。</p>
+            </div>
+          </div>
+          <div id="logList" class="log-list"></div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
+

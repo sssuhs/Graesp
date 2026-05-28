@@ -1,0 +1,232 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GraEsp 主机控制台</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="toastHost" class="toast-host" aria-live="polite" aria-atomic="false"></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-text">
+          <h1>GraEsp</h1>
+          <div class="host">多终端主机</div>
+        </div>
+        <button id="themeToggle" class="btn-theme" title="切换主题" aria-label="切换主题">◐</button>
+      </div>
+
+      <button id="homeNav" class="home-nav active" type="button">
+        <span>主页面</span>
+        <strong id="homeNavCount">0</strong>
+      </button>
+
+      <div class="sidebar-tools">
+        <input id="deviceSearch" class="search-input" type="search" placeholder="搜索设备或 IP">
+        <div class="filter-row" aria-label="设备筛选">
+          <button id="filterAll" class="filter-chip active" type="button">全部</button>
+          <button id="filterOnline" class="filter-chip" type="button">在线</button>
+          <button id="filterAlert" class="filter-chip" type="button">异常</button>
+        </div>
+      </div>
+
+      <div class="sidebar-status">
+        <span class="badge">
+          <span id="hostDot" class="dot"></span>
+          <span id="hostState">等待数据</span>
+        </span>
+        <button id="clearOffline" class="link-btn" type="button">清除离线设备</button>
+      </div>
+
+      <div id="deviceList" class="device-list"></div>
+    </aside>
+
+    <main class="content">
+      <div id="home">
+        <section class="topbar">
+          <div class="title">
+            <h2>主机总览</h2>
+            <p id="homeMeta">0 个终端接入</p>
+            <p class="title-subtle">设备通过 MQTT 云端或 UDP 本地上报后自动出现，异常状态会在这里集中提示。</p>
+          </div>
+          <div class="actions">
+            <a class="btn" href="/api/export.csv">导出 CSV</a>
+            <button id="cmdBroadcast" class="btn primary">广播全局刷新</button>
+          </div>
+        </section>
+
+
+        <section class="grid">
+          <div class="metric">
+            <div class="metric-label">终端总数</div>
+            <div id="totalDevices" class="metric-value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">在线终端</div>
+            <div id="onlineDevices" class="metric-value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">离线终端</div>
+            <div id="offlineDevices" class="metric-value">0</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">异常终端</div>
+            <div id="alertDevices" class="metric-value">0</div>
+          </div>
+        </section>
+
+        <section class="home-layout">
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">设备列表</div>
+              <span id="homeListHint" class="muted">--</span>
+            </div>
+            <div id="homeDeviceGrid" class="home-device-grid"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div class="panel-title">主机记录</div>
+              <span class="muted code-font">MQTT / UDP</span>
+            </div>
+            <div id="homeEventLog" class="log"></div>
+          </div>
+        </section>
+      </div>
+
+      <div id="dashboard" hidden>
+        <section class="topbar">
+          <div class="title">
+            <h2 id="deviceTitle">--</h2>
+            <p id="deviceMeta">--</p>
+          </div>
+          <div class="actions">
+            <button id="backHome" class="btn">返回主页面</button>
+            <button id="cmdSelfTest" class="btn">系统自检</button>
+            <button id="cmdResetStats" class="btn">清除统计</button>
+            <button id="renameSelected" class="btn">备注设备</button>
+            <button id="deleteSelected" class="btn danger">删除设备</button>
+          </div>
+        </section>
+
+        <section id="stateBanner" class="state-banner normal">
+          <div>
+            <span class="eyebrow">报警状态机</span>
+            <strong id="stateBannerTitle">正常监测</strong>
+            <p id="stateBannerReason">等待设备数据。</p>
+          </div>
+          <span id="linkBadge" class="state-pill offline">链路未知</span>
+        </section>
+
+        <section class="grid">
+          <div class="metric card-state-border">
+            <div class="metric-label">当前运行状态</div>
+            <div id="state" class="metric-value">--</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">估计电流</div>
+            <div class="metric-value">
+              <span id="current">--</span><span class="metric-unit">A</span>
+            </div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">过载概率</div>
+            <div class="metric-value">
+              <span id="prob">--</span><span class="metric-unit">%</span>
+            </div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">终端电量</div>
+            <div class="metric-value">
+              <span id="battery">--</span><span class="metric-unit">%</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="layout">
+          <div class="panel chart-panel">
+            <div class="panel-head">
+              <div class="panel-title">实时趋势曲线</div>
+              <div class="seg">
+                <button id="seriesThermal" class="active">热特征</button>
+                <button id="seriesModel">模型量</button>
+              </div>
+            </div>
+            <div class="canvas-container">
+              <canvas id="chart" width="1200" height="360"></canvas>
+            </div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-head">
+              <div class="panel-title">测温明细</div>
+              <span id="onlineBadge" class="state-pill">--</span>
+            </div>
+            <div class="detail-grid">
+              <div class="kv"><span>NTC1 探头</span><strong id="ntc1">--</strong></div>
+              <div class="kv"><span>NTC2 探头</span><strong id="ntc2">--</strong></div>
+              <div class="kv"><span>环境温度</span><strong id="ambient">--</strong></div>
+              <div class="kv"><span>当前温升</span><strong id="rise">--</strong></div>
+              <div class="kv"><span>升温速率</span><strong id="rate">--</strong></div>
+              <div class="kv"><span>点位温差</span><strong id="diff">--</strong></div>
+              <div class="kv"><span>内部自检</span><strong id="selfTest">--</strong></div>
+              <div class="kv fault-kv"><span>自检故障项</span><strong id="faultMask">--</strong></div>
+              <div class="kv"><span>历史最高温升</span><strong id="maxRise" class="highlight-val">--</strong></div>
+              <div class="kv"><span>历史最高电流</span><strong id="maxCurrent" class="highlight-val">--</strong></div>
+              <div class="kv"><span>温升偏高次数</span><strong id="tempHighCount">--</strong></div>
+              <div class="kv"><span>预警次数</span><strong id="warningCount">--</strong></div>
+              <div class="kv"><span>过载次数</span><strong id="alarmCount">--</strong></div>
+              <div class="kv"><span>故障次数</span><strong id="faultCount">--</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">当前设备网络</div>
+              <p class="panel-subtitle">让当前在线设备扫描周围 WiFi，选择目标网络后再下发密码。</p>
+            </div>
+            <span id="deviceProvisionStatus" class="state-pill offline">未提交</span>
+          </div>
+          <div class="provision-grid device-provision-grid">
+            <label class="field">
+              <span>目标 WiFi 名称</span>
+              <input id="deviceProvisionSsid" placeholder="例如 TT24" maxlength="32" autocomplete="off">
+            </label>
+            <label class="field">
+              <span>目标 WiFi 密码</span>
+              <input id="deviceProvisionPassword" type="password" placeholder="留空表示开放网络" maxlength="63" autocomplete="current-password">
+            </label>
+            <div class="provision-actions">
+              <button id="deviceScanWifi" class="btn" type="button">扫描附近 WiFi</button>
+              <button id="deviceOnlineProvision" class="btn primary" type="button">连接此 WiFi</button>
+              <button id="deviceClearWifi" class="btn danger" type="button">清除当前设备 WiFi</button>
+            </div>
+          </div>
+          <div id="deviceWifiList" class="wifi-list"></div>
+        </section>
+
+        <section class="panel log-panel">
+          <div class="panel-head">
+            <div class="panel-title">设备记录</div>
+            <span class="muted code-font">MQTT / UDP telemetry log</span>
+          </div>
+          <div id="eventLog" class="log"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
