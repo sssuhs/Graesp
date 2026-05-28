@@ -23,6 +23,8 @@
 
 可以部署到 GitHub Pages、Cloudflare Pages、Vercel、Netlify 等静态托管平台。因为页面是 HTTPS，默认使用 `wss://broker.emqx.io:8084/mqtt`，避免浏览器拦截普通 `ws://`。
 
+项目根目录已包含 `.github/workflows/pages.yml`。把整个 `D:\EspProjects\GraEsp` 仓库推到 GitHub 后，在仓库 `Settings -> Pages` 里选择 GitHub Actions，后续推送 `cloud-web` 改动会自动部署。
+
 ## 功能
 
 - 云端主页面总览：终端总数、在线、离线、异常
