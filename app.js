@@ -2,6 +2,10 @@ const $ = id => document.getElementById(id);
 const chart = $("chart");
 const ctx = chart.getContext("2d");
 
+const LOGIN_USER = "admin";
+const LOGIN_PASSWORD = "123456";
+const AUTH_KEY = "graesp-cloud-auth";
+
 let client = null;
 let selectedId = localStorage.getItem("graesp-cloud-selected") || "";
 let view = "home";
@@ -41,6 +45,44 @@ function log(message, level = "normal") {
   logs.unshift({ message, level, time: nowText() });
   logs = logs.slice(0, 80);
   renderLogs();
+}
+
+function isLoggedIn() {
+  return localStorage.getItem(AUTH_KEY) === "1" || sessionStorage.getItem(AUTH_KEY) === "1";
+}
+
+function setLoginVisible(showLogin) {
+  $("loginView").hidden = !showLogin;
+  $("appShell").hidden = showLogin;
+  if (!showLogin) {
+    $("loginPassword").value = "";
+    setText("loginError", "");
+  }
+}
+
+function handleLogin(event) {
+  event.preventDefault();
+  const user = $("loginUser").value.trim();
+  const password = $("loginPassword").value;
+  if (user !== LOGIN_USER || password !== LOGIN_PASSWORD) {
+    setText("loginError", "账号或密码不正确。");
+    $("loginPassword").focus();
+    return;
+  }
+
+  const store = $("rememberLogin").checked ? localStorage : sessionStorage;
+  store.setItem(AUTH_KEY, "1");
+  setLoginVisible(false);
+  render();
+}
+
+function logout() {
+  localStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(AUTH_KEY);
+  if (client) client.end();
+  client = null;
+  setMqttStatus("未连接", "");
+  setLoginVisible(true);
 }
 
 function fmt(value, digits = 2) {
@@ -492,9 +534,13 @@ $("wifiUpdateBtn").onclick = () => {
   publishCommand("wifi_update", { ssid, password: $("wifiPassword").value });
 };
 
+$("loginForm").onsubmit = handleLogin;
+$("logoutBtn").onclick = logout;
+
 $("brokerUrl").value = localStorage.getItem("graesp-cloud-broker") || $("brokerUrl").value;
 $("topicPrefix").value = localStorage.getItem("graesp-cloud-prefix") || $("topicPrefix").value;
 setMqttStatus("未连接", "");
 renderLogs();
+setLoginVisible(!isLoggedIn());
 setInterval(render, 1000);
 render();

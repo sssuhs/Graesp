@@ -7,7 +7,29 @@
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <main class="app-shell">
+  <section id="loginView" class="login-view">
+    <form id="loginForm" class="login-card">
+      <p class="eyebrow">GraEsp Cloud</p>
+      <h1>云端主机登录</h1>
+      <p class="muted">登录后进入设备监测与远程控制页面。</p>
+      <label>
+        <span>账号</span>
+        <input id="loginUser" autocomplete="username" value="admin">
+      </label>
+      <label>
+        <span>密码</span>
+        <input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码">
+      </label>
+      <label class="remember-row">
+        <input id="rememberLogin" type="checkbox">
+        <span>保持登录</span>
+      </label>
+      <button class="btn primary login-submit" type="submit">登录</button>
+      <p id="loginError" class="login-error" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <main id="appShell" class="app-shell" hidden>
     <header class="topbar">
       <div>
         <p class="eyebrow">GraEsp Cloud</p>
@@ -18,6 +40,7 @@
         <span id="mqttDot" class="dot"></span>
         <strong id="mqttStatus">未连接</strong>
         <small id="mqttMeta">broker.emqx.io</small>
+        <button id="logoutBtn" class="link-action" type="button">退出登录</button>
       </div>
     </header>
 
