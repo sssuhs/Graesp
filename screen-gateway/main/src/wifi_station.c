@@ -67,10 +67,14 @@ static void wifi_event_handler(void *arg,
             ESP_LOGI(TAG, "STA started, delaying connect until test WiFi scan completes");
         }
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        const wifi_event_sta_disconnected_t *event = (const wifi_event_sta_disconnected_t *)event_data;
         xEventGroupClearBits(s_wifi_events, WIFI_CONNECTED_BIT);
+        ESP_LOGW(TAG, "WiFi disconnected, reason:%d, reconnecting", event == NULL ? -1 : event->reason);
         esp_wifi_connect();
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        const ip_event_got_ip_t *event = (const ip_event_got_ip_t *)event_data;
         xEventGroupSetBits(s_wifi_events, WIFI_CONNECTED_BIT);
+        ESP_LOGI(TAG, "WiFi connected, IP:" IPSTR, IP2STR(&event->ip_info.ip));
     }
 }
 
@@ -87,6 +91,14 @@ esp_err_t gateway_wifi_start(void)
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    const wifi_country_t country = {
+        .cc = "CN",
+        .schan = 1,
+        .nchan = 13,
+        .max_tx_power = 20,
+        .policy = WIFI_COUNTRY_POLICY_MANUAL,
+    };
+    ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_set_country(&country));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event_handler, NULL));
 
@@ -95,7 +107,9 @@ esp_err_t gateway_wifi_start(void)
     strlcpy((char *)wifi_config.sta.password,
             GATEWAY_WIFI_PASSWORD,
             sizeof(wifi_config.sta.password));
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA_PSK;
+    wifi_config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
+    wifi_config.sta.sort_method = WIFI_CONNECT_AP_BY_SIGNAL;
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
