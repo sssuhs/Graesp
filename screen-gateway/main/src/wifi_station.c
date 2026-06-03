@@ -95,7 +95,7 @@ esp_err_t gateway_wifi_start(void)
     strlcpy((char *)wifi_config.sta.password,
             GATEWAY_WIFI_PASSWORD,
             sizeof(wifi_config.sta.password));
-    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+    wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA_PSK;
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
