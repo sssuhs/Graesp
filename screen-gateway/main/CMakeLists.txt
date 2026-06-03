@@ -1,6 +1,10 @@
 idf_component_register(
     SRCS
         "app_main.c"
+        "src/gateway_telemetry.c"
+        "src/tjc_screen.c"
+        "src/udp_receiver.c"
+        "src/wifi_station.c"
     INCLUDE_DIRS
         "include"
     REQUIRES
@@ -9,5 +13,6 @@ idf_component_register(
         esp_event
         esp_netif
         esp_wifi
+        lwip
         nvs_flash
 )
