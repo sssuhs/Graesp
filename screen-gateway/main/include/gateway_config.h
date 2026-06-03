@@ -1,0 +1,18 @@
+#pragma once
+
+#include "driver/gpio.h"
+#include "driver/uart.h"
+
+#define GATEWAY_MCU_TARGET "ESP32-C2"
+#define GATEWAY_TJC_MODEL "TJC4827T143_011"
+
+#define GATEWAY_WIFI_SSID "TT24"
+#define GATEWAY_WIFI_PASSWORD "88888888"
+
+#define GATEWAY_TELEMETRY_UDP_PORT 3333
+
+#define GATEWAY_TJC_UART_NUM UART_NUM_0
+#define GATEWAY_TJC_TX_GPIO GPIO_NUM_20
+#define GATEWAY_TJC_RX_GPIO GPIO_NUM_19
+#define GATEWAY_TJC_UART_BAUDRATE 9600
+#define GATEWAY_TJC_PAGE "main"
