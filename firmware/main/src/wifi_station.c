@@ -28,6 +28,7 @@ static bool s_started;
 static bool s_connected;
 static bool s_ap_started;
 static bool s_using_builtin_debug_wifi;
+static bool s_sta_auto_connect_enabled = true;
 static int s_retry_count;
 static char s_current_ssid[33];
 
@@ -86,6 +87,41 @@ static void load_builtin_debug_credentials(char *ssid, size_t ssid_size, char *p
 {
     strlcpy(ssid, APP_WIFI_SSID, ssid_size);
     strlcpy(password, APP_WIFI_PASSWORD, password_size);
+}
+
+static bool scan_has_builtin_debug_wifi(void)
+{
+    wifi_ap_record_t records[APP_WIFI_SCAN_MAX_AP] = {0};
+    uint16_t count = APP_WIFI_SCAN_MAX_AP;
+    uint8_t target_ssid[] = APP_WIFI_SSID;
+    wifi_scan_config_t scan_config = {
+        .ssid = target_ssid,
+        .bssid = NULL,
+        .channel = 0,
+        .show_hidden = false,
+    };
+
+    esp_err_t err = esp_wifi_scan_start(&scan_config, true);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "scan debug WiFi %s failed: %s", APP_WIFI_SSID, esp_err_to_name(err));
+        return false;
+    }
+
+    err = esp_wifi_scan_get_ap_records(&count, records);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "read debug WiFi scan result failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    for (uint16_t i = 0; i < count; i++) {
+        if (strcmp((const char *)records[i].ssid, APP_WIFI_SSID) == 0) {
+            ESP_LOGW(TAG, "test WiFi %s found, forcing built-in debug credentials", APP_WIFI_SSID);
+            return true;
+        }
+    }
+
+    ESP_LOGI(TAG, "test WiFi %s not found in scan, keeping selected credentials", APP_WIFI_SSID);
+    return false;
 }
 
 static esp_err_t save_wifi_credentials(const char *ssid, const char *password)
@@ -316,8 +352,12 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     (void)arg;
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        ESP_LOGI(TAG, "connecting to WiFi SSID:%s", s_current_ssid);
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
+        if (s_sta_auto_connect_enabled) {
+            ESP_LOGI(TAG, "connecting to WiFi SSID:%s", s_current_ssid);
+            ESP_ERROR_CHECK_WITHOUT_ABORT(esp_wifi_connect());
+        } else {
+            ESP_LOGI(TAG, "STA started, delaying connect until debug WiFi scan completes");
+        }
         return;
     }
 
@@ -424,7 +464,19 @@ esp_err_t app_wifi_station_start(void)
                                                            strcmp(password, APP_WIFI_PASSWORD) == 0),
                         TAG,
                         "apply WiFi credentials failed");
+    s_sta_auto_connect_enabled = false;
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "esp_wifi_start failed");
+
+    if (scan_has_builtin_debug_wifi()) {
+        load_builtin_debug_credentials(ssid, sizeof(ssid), password, sizeof(password));
+        ESP_RETURN_ON_ERROR(wifi_station_apply_credentials(ssid, password, true),
+                            TAG,
+                            "apply forced built-in debug WiFi failed");
+    }
+
+    s_sta_auto_connect_enabled = true;
+    ESP_LOGI(TAG, "connecting to WiFi SSID:%s", s_current_ssid);
+    ESP_RETURN_ON_ERROR(esp_wifi_connect(), TAG, "initial WiFi connect failed");
     wifi_apply_power_save();
 
     s_started = true;

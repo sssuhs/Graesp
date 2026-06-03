@@ -12,8 +12,44 @@
 
 static const char *TAG = "wifi_station";
 static EventGroupHandle_t s_wifi_events;
+static bool s_auto_connect_enabled = true;
 
 #define WIFI_CONNECTED_BIT BIT0
+
+static bool scan_has_test_wifi(void)
+{
+    wifi_ap_record_t records[8] = {0};
+    uint16_t count = 8;
+    uint8_t target_ssid[] = GATEWAY_WIFI_SSID;
+    wifi_scan_config_t scan_config = {
+        .ssid = target_ssid,
+        .bssid = NULL,
+        .channel = 0,
+        .show_hidden = false,
+    };
+
+    esp_err_t err = esp_wifi_scan_start(&scan_config, true);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "scan test WiFi %s failed: %s", GATEWAY_WIFI_SSID, esp_err_to_name(err));
+        return false;
+    }
+
+    err = esp_wifi_scan_get_ap_records(&count, records);
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "read test WiFi scan result failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    for (uint16_t i = 0; i < count; i++) {
+        if (strcmp((const char *)records[i].ssid, GATEWAY_WIFI_SSID) == 0) {
+            ESP_LOGW(TAG, "test WiFi %s found, using built-in credentials", GATEWAY_WIFI_SSID);
+            return true;
+        }
+    }
+
+    ESP_LOGW(TAG, "test WiFi %s not found, keeping built-in credentials and retrying", GATEWAY_WIFI_SSID);
+    return false;
+}
 
 static void wifi_event_handler(void *arg,
                                esp_event_base_t event_base,
@@ -24,7 +60,12 @@ static void wifi_event_handler(void *arg,
     (void)event_data;
 
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
+        if (s_auto_connect_enabled) {
+            ESP_LOGI(TAG, "connecting to WiFi SSID:%s", GATEWAY_WIFI_SSID);
+            esp_wifi_connect();
+        } else {
+            ESP_LOGI(TAG, "STA started, delaying connect until test WiFi scan completes");
+        }
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         xEventGroupClearBits(s_wifi_events, WIFI_CONNECTED_BIT);
         esp_wifi_connect();
@@ -59,7 +100,12 @@ esp_err_t gateway_wifi_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+
+    s_auto_connect_enabled = false;
     ESP_ERROR_CHECK(esp_wifi_start());
+    scan_has_test_wifi();
+    s_auto_connect_enabled = true;
+    ESP_ERROR_CHECK(esp_wifi_connect());
 
     ESP_LOGI(TAG, "connecting to WiFi SSID:%s", GATEWAY_WIFI_SSID);
     return ESP_OK;
