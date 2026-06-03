@@ -10,6 +10,7 @@
 #include "esp_log.h"
 #include "overload_detector.h"
 
+#if APP_SERIAL_HMI_ENABLE
 static const char *TAG = "serial_hmi";
 static bool s_boot_sent;
 
@@ -72,6 +73,7 @@ static const char *state_to_cn(app_state_t state)
         return "故障";
     }
 }
+#endif
 
 esp_err_t serial_hmi_init(void)
 {
