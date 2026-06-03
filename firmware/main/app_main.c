@@ -19,6 +19,7 @@
 #include "ntc_sampler.h"
 #include "overload_detector.h"
 #include "runtime_stats.h"
+#include "serial_hmi.h"
 #include "telemetry_json.h"
 #include "telemetry_udp.h"
 #include "wifi_station.h"
@@ -221,6 +222,7 @@ void app_main(void)
     ESP_ERROR_CHECK(nvs_err);
     ESP_ERROR_CHECK(device_identity_init());
     ESP_LOGI(TAG, "device_id:%s", device_identity_get());
+    ESP_ERROR_CHECK(serial_hmi_init());
 
     ESP_ERROR_CHECK(alarm_controller_init());
 
@@ -261,6 +263,7 @@ void app_main(void)
     overload_detector_reset();
     ESP_LOGI(TAG, "edge model: %s", model_predictor_version());
     int64_t last_wifi_recovery_ms = esp_timer_get_time() / 1000;
+    int64_t last_hmi_update_ms = 0;
     int64_t last_telemetry_upload_ms = 0;
 
     while (true) {
@@ -335,6 +338,11 @@ void app_main(void)
             (void)json_appendf(json, sizeof(json), used, "]}");
         }
         ESP_LOGI(TAG, "%s", json);
+        if ((now_ms - last_hmi_update_ms) >= APP_SERIAL_HMI_UPDATE_PERIOD_MS) {
+            ESP_ERROR_CHECK_WITHOUT_ABORT(
+                serial_hmi_send_status(now_ms, &sample, &features, &result, &stats));
+            last_hmi_update_ms = now_ms;
+        }
         if (app_wifi_station_is_connected()) {
             if ((now_ms - last_telemetry_upload_ms) >= upload_period_ms) {
                 ESP_ERROR_CHECK_WITHOUT_ABORT(telemetry_udp_send(json));

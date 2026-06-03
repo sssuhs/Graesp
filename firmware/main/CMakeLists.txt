@@ -12,6 +12,7 @@
         "src/ntc_sampler.c"
         "src/overload_detector.c"
         "src/runtime_stats.c"
+        "src/serial_hmi.c"
         "src/telemetry_json.c"
         "src/telemetry_udp.c"
         "src/wifi_station.c"
@@ -20,6 +21,7 @@
     REQUIRES
         esp_adc
         esp_driver_gpio
+        esp_driver_uart
         esp_event
         esp_http_server
         esp_netif

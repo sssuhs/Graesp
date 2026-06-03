@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "driver/gpio.h"
+#include "driver/uart.h"
 #include "hal/adc_types.h"
 
 #define APP_DEVICE_ID_PREFIX "GRAESP"
@@ -21,6 +22,13 @@
 #define APP_BOOT_GPIO GPIO_NUM_0
 #define APP_UART0_TX_GPIO GPIO_NUM_43
 #define APP_UART0_RX_GPIO GPIO_NUM_44
+
+#define APP_SERIAL_HMI_ENABLE 1
+#define APP_SERIAL_HMI_UART_NUM UART_NUM_1
+#define APP_SERIAL_HMI_TX_GPIO GPIO_NUM_16
+#define APP_SERIAL_HMI_RX_GPIO GPIO_NUM_21
+#define APP_SERIAL_HMI_BAUDRATE 115200
+#define APP_SERIAL_HMI_UPDATE_PERIOD_MS 1000
 
 #define APP_WIFI_SSID "TT24"
 #define APP_WIFI_PASSWORD "88888888"
