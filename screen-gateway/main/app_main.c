@@ -8,7 +8,9 @@
 
 void app_main(void)
 {
+#if !GATEWAY_DEBUG_LOG_ENABLE
     esp_log_level_set("*", ESP_LOG_NONE);
+#endif
 
     esp_err_t nvs_err = nvs_flash_init();
     if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -17,14 +19,22 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(nvs_err);
 
+#if GATEWAY_TJC_ENABLE
     ESP_ERROR_CHECK(tjc_screen_init());
     ESP_ERROR_CHECK(tjc_screen_show_status("连接WiFi"));
+#endif
 
     ESP_ERROR_CHECK(gateway_wifi_start());
     if (gateway_wifi_wait_connected(15000)) {
+#if GATEWAY_TJC_ENABLE
         ESP_ERROR_CHECK(tjc_screen_show_status("等待数据"));
+#endif
+        ESP_LOGI("gateway", "WiFi connected, waiting UDP telemetry on port %d", GATEWAY_TELEMETRY_UDP_PORT);
     } else {
+#if GATEWAY_TJC_ENABLE
         ESP_ERROR_CHECK(tjc_screen_show_status("WiFi未连"));
+#endif
+        ESP_LOGW("gateway", "WiFi not connected yet, UDP receiver still starting");
     }
 
     ESP_ERROR_CHECK(udp_receiver_start());
